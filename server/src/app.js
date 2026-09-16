@@ -49,7 +49,7 @@ app.use(express.json());
 function requestedGame(req, res) {
   const game = repository.findGameByCode(req.params.code);
   if (!game) {
-    res.status(404).json({ error: 'Partie introuvable.' });
+    res.status(404).json({ error: 'Partie introuvable !!!.' });
     return null;
   }
   return game;
