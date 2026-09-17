@@ -23,7 +23,7 @@ export default function Home() {
 
   return (
     <main className="screen">
-      <h1>Super Quiz M9</h1>
+      <h1>Super Quiz M9 !!!</h1>
 
       {/* Deux choix exclusifs, côte à côte : on joue OU on anime. */}
       <div className="home-choices">
