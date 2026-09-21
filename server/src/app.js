@@ -20,7 +20,8 @@
  *   GET    /api/me/quizzes                    200 [{ id, title, questionCount }] ou 401
  *   GET    /api/quizzes                       200 [{ id, title, questionCount }]
  *   GET    /api/quizzes/:id                   200 le questionnaire complet
- *   POST   /api/quizzes                       201 { id, title }  corps : { title }
+ *   GET    /api/quizzes/:id/games             200 [{ id, code, state, createdAt, playerCount }]
+ *   POST   /api/quizzes                       201 { id, title }  corps : { title }  (connecté)
  *   POST   /api/quizzes/:id/questions         201 { id }         corps : { text, durationSeconds, choices }
  *   DELETE /api/quizzes/:id/questions/:qid    200 {}
  *   POST /api/games                    201 { code }        corps : { quizId }
@@ -65,11 +66,13 @@ app.get('/api/quizzes', async (req, res) => {
   res.status(200).json(await repository.listQuizzes());
 });
 
-// Les questionnaires de l'auteur connecté. À faire (exercice 11, jalon 2) :
-// 401 si personne n'est connecté (currentAccount), sinon SEULEMENT les siens
-// (repository.listQuizzesForAccount). Pour l'instant : tous.
+// Les questionnaires de l'auteur connecté.
 app.get('/api/me/quizzes', async (req, res) => {
-  res.status(200).json(await repository.listQuizzes());
+  const account = await currentAccount(req);
+  if (!account) {
+    return res.status(401).json({ error: 'Connectez-vous pour voir vos questionnaires.' });
+  }
+  res.status(200).json(await repository.listQuizzesForAccount(account.id));
 });
 
 // Un questionnaire complet, avec ses bonnes réponses : la vue de l'AUTEUR,
@@ -80,6 +83,15 @@ app.get('/api/quizzes/:id', async (req, res) => {
     return res.status(404).json({ error: 'Questionnaire introuvable.' });
   }
   res.status(200).json(quiz);
+});
+
+// Les parties jouées sur un questionnaire (exercice 10).
+app.get('/api/quizzes/:id/games', async (req, res) => {
+  const quizId = Number(req.params.id);
+  if (!(await repository.getQuizWithQuestions(quizId))) {
+    return res.status(404).json({ error: 'Questionnaire introuvable.' });
+  }
+  res.status(200).json(await repository.listGamesForQuiz(quizId));
 });
 
 // ── L'espace auteur ───────────────────────────────────────────────────────
@@ -115,14 +127,17 @@ function validateQuestion(body) {
   return null;
 }
 
-// Créer un questionnaire vide. À faire (exercice 11, jalon 2) : 401 si
-// personne n'est connecté, et le questionnaire appartient au compte connecté.
+// Créer un questionnaire vide : il appartient à l'auteur connecté.
 app.post('/api/quizzes', async (req, res) => {
+  const account = await currentAccount(req);
+  if (!account) {
+    return res.status(401).json({ error: 'Connectez-vous pour créer un questionnaire.' });
+  }
   const title = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
   if (title === '') {
     return res.status(400).json({ error: 'Le titre est obligatoire.' });
   }
-  const id = await repository.createQuiz(title, null);
+  const id = await repository.createQuiz(title, account.id);
   res.status(201).json({ id, title });
 });
 

@@ -10,8 +10,8 @@ import { apiFetch } from '../api-url.js';
  * la réponse envoyée au navigateur, sinon le cookie y reste.
  */
 export async function action({ request }) {
-  // À faire (exercice 11, jalon 3) : appeler POST /api/auth/logout avec
-  // apiFetch, puis rediriger vers / en recopiant l'en-tête set-cookie de la
-  // réponse de l'API. Pour l'instant, le bouton ne déconnecte pas.
-  return redirect('/');
+  const response = await apiFetch(request, '/api/auth/logout', { method: 'POST' });
+  return redirect('/', {
+    headers: { 'set-cookie': response.headers.get('set-cookie') ?? '' },
+  });
 }

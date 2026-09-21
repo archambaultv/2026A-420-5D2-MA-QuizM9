@@ -13,6 +13,7 @@ export {
   createQuiz,
   deleteQuestion,
   getQuizWithQuestions,
+  listGamesForQuiz,
   listQuizzes,
   listQuizzesForAccount,
 } from './quizzes.js';

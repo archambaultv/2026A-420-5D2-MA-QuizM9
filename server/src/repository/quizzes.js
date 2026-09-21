@@ -25,14 +25,18 @@ export async function listQuizzes() {
   return rows;
 }
 
-/**
- * Les questionnaires d'un auteur : sa liste « Mes questionnaires ». Même
- * forme que listQuizzes, mais seulement ceux dont account_id est le sien.
- *
- * À faire (exercice 11, jalon 2).
- */
+/** Les questionnaires d'un auteur : sa liste « Mes questionnaires ». */
 export async function listQuizzesForAccount(accountId) {
-  throw new Error('À faire : listQuizzesForAccount.');
+  const { rows } = await pool.query(
+    `SELECT quiz.id, quiz.title, COUNT(question.id) AS "questionCount"
+       FROM quiz
+       LEFT JOIN question ON question.quiz_id = quiz.id
+      WHERE quiz.account_id = $1
+      GROUP BY quiz.id
+      ORDER BY quiz.id`,
+    [accountId],
+  );
+  return rows;
 }
 
 /**
@@ -83,11 +87,31 @@ export async function getQuizWithQuestions(quizId) {
   };
 }
 
+/**
+ * Les parties jouées sur un questionnaire, la plus récente d'abord, avec le
+ * nombre de joueurs : le rapport de l'auteur (exercice 10).
+ *
+ * @returns {Promise<Array<{id, code, state, createdAt, playerCount}>>}
+ */
+export async function listGamesForQuiz(quizId) {
+  const { rows } = await pool.query(
+    `SELECT game.id, game.code, game.state,
+            game.created_at AS "createdAt",
+            COUNT(player.id) AS "playerCount"
+       FROM game
+       LEFT JOIN player ON player.game_id = game.id
+      WHERE game.quiz_id = $1
+      GROUP BY game.id
+      ORDER BY game.created_at DESC`,
+    [quizId],
+  );
+  return rows;
+}
+
 // ── Les écritures de l'espace auteur ──────────────────────────────────────
 
 /**
- * Crée un questionnaire vide, qui appartient à un compte (null : à personne,
- * tant que l'exercice 11 n'est pas fait).
+ * Crée un questionnaire vide, qui appartient à un compte.
  *
  * SQLite donnait l'id dans lastInsertRowid ; PostgreSQL le RETOURNE comme
  * une ligne de résultat.
