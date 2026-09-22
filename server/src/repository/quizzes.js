@@ -82,7 +82,8 @@ export async function getQuizWithQuestions(quizId) {
       durationSeconds: q.duration_seconds,
       choices: choices
         .filter((c) => c.question_id === q.id)
-        .map((c) => ({ id: c.id, text: c.text, isCorrect: c.is_correct })),
+        // Boolean : SQLite rend 0 ou 1, PostgreSQL true ou false.
+        .map((c) => ({ id: c.id, text: c.text, isCorrect: Boolean(c.is_correct) })),
     })),
   };
 }

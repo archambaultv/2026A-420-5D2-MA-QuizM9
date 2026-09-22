@@ -1,40 +1,20 @@
 /**
- * La connexion à la base. PostgreSQL est un SERVEUR, plus un fichier : on
- * s'y connecte par une adresse, DATABASE_URL. La valeur par défaut est celle
- * du service postgres de compose.yml, démarré par `docker compose up -d postgres`.
+ * L'aiguilleur vers le moteur de base de données. DATABASE_URL décide :
  *
- * Un Pool garde quelques connexions ouvertes et en prête une à chaque
- * requête. Toute requête est ASYNCHRONE : elle part sur le réseau, la
- * réponse revient plus tard, d'où les `await` partout dans repository/.
+ *   postgres://…   PostgreSQL, le moteur du cours (db-postgres.js). C'est le
+ *                  défaut : le service postgres de compose.yml.
+ *   sqlite:…       SQLite, un simple fichier, pour un poste SANS Docker
+ *                  (db-sqlite.js). Rien à installer : il est dans Node.
+ *
+ * Les deux modules offrent la même interface : `pool.query(sql, [valeurs])`
+ * qui retourne { rows, rowCount }, et `pool.connect()` pour une transaction.
+ * Le reste de repository/ ne sait pas lequel des deux répond.
  */
-import pg from 'pg';
+const engine = process.env.DATABASE_URL?.startsWith('sqlite:')
+  ? await import('./db-sqlite.js')
+  : await import('./db-postgres.js');
 
-const { Pool, types } = pg;
-
-// Les BIGINT (horodatages, COUNT(*)) arrivent en chaîne par défaut, parce
-// qu'un BIGINT peut dépasser ce qu'un Number représente. Pas les nôtres :
-// on les convertit en nombres.
-types.setTypeParser(types.builtins.INT8, Number);
-
-const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://quizm9:quizm9@localhost:5432/quizm9';
-
-export const pool = new Pool({ connectionString: DATABASE_URL });
-
-/** Crée les tables (schema.sql), puis les remplit (seed.sql) si la base est vide. */
-export async function initializeDatabase() {
-  const schema = await readSql('schema.sql');
-  await pool.query(schema);
-
-  const { rows } = await pool.query('SELECT COUNT(*) AS n FROM quiz');
-  if (rows[0].n === 0) {
-    await pool.query(await readSql('seed.sql'));
-  }
-}
-
-async function readSql(name) {
-  const { readFile } = await import('node:fs/promises');
-  return readFile(new URL(`../../data/${name}`, import.meta.url), 'utf8');
-}
+export const { pool, initializeDatabase, closeDatabase } = engine;
 
 /**
  * Enveloppe des écritures qui doivent réussir ENSEMBLE. Une transaction vit
@@ -55,9 +35,4 @@ export async function withTransaction(fn) {
   } finally {
     client.release();
   }
-}
-
-/** Ferme les connexions ; les tests s'en servent pour finir proprement. */
-export function closeDatabase() {
-  return pool.end();
 }

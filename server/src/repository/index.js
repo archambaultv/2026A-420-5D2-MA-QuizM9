@@ -4,7 +4,8 @@
  *
  * Semaine 5 : SQLite a cédé sa place à PostgreSQL. Tout le SQL étant ici, le
  * changement est resté confiné ici ; le reste du serveur a seulement appris
- * à attendre (`await`) ses réponses.
+ * à attendre (`await`) ses réponses. SQLite reste disponible en secours,
+ * pour un poste sans Docker (voir db.js).
  */
 export { closeDatabase, initializeDatabase, withTransaction } from './db.js';
 export { findAccount, findOrCreateAccount } from './accounts.js';

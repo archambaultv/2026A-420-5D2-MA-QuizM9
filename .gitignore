@@ -6,6 +6,6 @@ build/
 # Les secrets : jamais dans le dépôt. Voir server/.env.example.
 .env
 
-# L'ancienne base SQLite des semaines 1 à 4, si elle traîne encore.
+# La base SQLite : celle des semaines 1 à 4, ou celle d'un poste sans Docker.
 server/data/*.db
 server/data/*.db-*

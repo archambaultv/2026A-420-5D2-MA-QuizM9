@@ -7,12 +7,15 @@
  * DATABASE_URL, la remplit par schema.sql et seed.sql, et la détruit à la
  * fin. Deux fichiers lancés en parallèle ne se voient pas.
  *
- * Il faut un PostgreSQL qui tourne : `docker compose up -d postgres`.
+ * Il faut un PostgreSQL qui tourne : `docker compose up -d postgres`. Sans
+ * Docker, DATABASE_URL=sqlite:… suffit : chaque fichier de test reçoit alors
+ * une base SQLite en mémoire, jetée à la fin.
  */
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 
 const ADMIN_URL = process.env.DATABASE_URL ?? 'postgres://quizm9:quizm9@localhost:5432/quizm9';
+const SQLITE = ADMIN_URL.startsWith('sqlite:');
 
 /** Exécute une commande d'administration (CREATE/DROP DATABASE) sur la base principale. */
 async function admin(sql) {
@@ -28,13 +31,17 @@ async function admin(sql) {
 /** Démarre l'API et retourne son adresse et une fonction pour l'arrêter. */
 export async function startServer() {
   const dbName = `quizm9_test_${randomBytes(4).toString('hex')}`;
-  await admin(`CREATE DATABASE ${dbName}`);
 
   // DATABASE_URL et SESSION_SECRET doivent être fixés AVANT d'importer
   // app.js : db.js et session.js les lisent au chargement.
-  const url = new URL(ADMIN_URL);
-  url.pathname = `/${dbName}`;
-  process.env.DATABASE_URL = url.href;
+  if (SQLITE) {
+    process.env.DATABASE_URL = 'sqlite::memory:';
+  } else {
+    await admin(`CREATE DATABASE ${dbName}`);
+    const url = new URL(ADMIN_URL);
+    url.pathname = `/${dbName}`;
+    process.env.DATABASE_URL = url.href;
+  }
   process.env.SESSION_SECRET = 'secret-de-test';
 
   const { app } = await import('../src/app.js');
@@ -82,7 +89,7 @@ export async function startServer() {
     async close() {
       await new Promise((resolve) => server.close(resolve));
       await repository.closeDatabase();
-      await admin(`DROP DATABASE ${dbName}`);
+      if (!SQLITE) await admin(`DROP DATABASE ${dbName}`);
     },
   };
 }

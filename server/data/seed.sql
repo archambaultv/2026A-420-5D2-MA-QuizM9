@@ -1,5 +1,6 @@
 -- Les questionnaires de démonstration. Chargé une seule fois, quand la table
--- quiz est vide (voir repository/db.js).
+-- quiz est vide (voir repository/db-postgres.js et db-sqlite.js). Les id sont
+-- donnés à la main ; PostgreSQL avance ensuite ses compteurs (db-postgres.js).
 
 INSERT INTO quiz (id, title) VALUES
   (1, 'Révision express du développement web'),
@@ -50,8 +51,3 @@ INSERT INTO choice (question_id, text, is_correct) VALUES
   (11, 'id', FALSE), (11, 'key', TRUE), (11, 'ref', FALSE), (11, 'name', FALSE),
   (12, 'une fonction qui retourne du JSX', TRUE), (12, 'une classe qui étend Element', FALSE),
   (12, 'un fichier HTML', FALSE), (12, 'une balise script', FALSE);
-
--- Les id ci-dessus sont donnés à la main : on avance les compteurs pour que
--- les prochains INSERT n'entrent pas en collision.
-SELECT setval(pg_get_serial_sequence('quiz', 'id'), (SELECT MAX(id) FROM quiz));
-SELECT setval(pg_get_serial_sequence('question', 'id'), (SELECT MAX(id) FROM question));

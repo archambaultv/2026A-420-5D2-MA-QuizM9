@@ -12,7 +12,8 @@ est sur le site du cours**, sous
 ## Prérequis
 
 - Node.js **LTS** (24 ou plus récent) ;
-- **Docker Desktop**, démarré : la base de données tourne dans un conteneur ;
+- **Docker Desktop**, démarré : la base de données tourne dans un conteneur
+  (sans Docker, voir [Sans Docker](#sans-docker)) ;
 - deux navigateurs, ou une fenêtre normale et une fenêtre privée, pour jouer
   à la fois animateur et joueur ;
 - sous Windows : clonez **hors d'un dossier synchronisé OneDrive**
@@ -38,6 +39,21 @@ que vous créez sur GitHub (voir l'exercice 11).
 ```bash
 npm test        # PostgreSQL doit tourner : docker compose up -d postgres
 ```
+
+## Sans Docker
+
+Sur un poste sans Docker Desktop, la base peut être un fichier SQLite : rien
+à installer, il est dans Node. Copiez `server/.env.example` en `server/.env`
+et décommentez-y la ligne :
+
+```
+DATABASE_URL=sqlite:data/quizm9.db
+```
+
+Puis `npm run dev` et `npm test` comme d'habitude, sans `docker compose`. Le
+fichier `server/data/quizm9.db` n'est pas versionné ; pour repartir à neuf,
+supprimez-le. Seuls « Regarder dans la base » et « Tout en conteneurs »
+demandent Docker.
 
 ## Regarder dans la base
 
