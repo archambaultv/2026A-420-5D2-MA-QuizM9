@@ -1,11 +1,10 @@
 /**
  * Le serveur du client en PRODUCTION (dans le conteneur). En développement,
  * `react-router dev` fait ce travail, et Vite relaie les appels /api du
- * navigateur vers Express. Ici, on refait les deux : un relais /api, puis
- * React Router qui rend les pages à partir du dossier build/.
- *
- * Fourni. Rien à modifier cette semaine.
+ * navigateur vers Express. Ici, on refait les deux : un relais /api (et /ws),
+ * puis React Router qui rend les pages à partir du dossier build/.
  */
+import net from 'node:net';
 import express from 'express';
 import { createRequestHandler } from '@react-router/express';
 
@@ -40,6 +39,29 @@ app.use('/api', express.raw({ type: '*/*' }), async (req, res) => {
 app.use(express.static('build/client', { maxAge: '1h' }));
 app.use(createRequestHandler({ build: await import('./build/server/index.js') }));
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Quiz M9 — client démarré sur http://localhost:${port} (API : ${API_URL})`);
+});
+
+// Le relais WebSocket. Une requête d'ouverture (Upgrade) n'arrive pas à
+// Express : le serveur HTTP la signale par l'événement 'upgrade'. On ouvre
+// une connexion TCP vers l'API, on lui réécrit la requête telle quelle, puis
+// on branche les deux tuyaux : la réponse 101 et toutes les trames passent
+// d'un côté à l'autre sans être lues.
+server.on('upgrade', (req, socket, head) => {
+  if (!req.url.startsWith('/ws')) return socket.destroy();
+
+  const api = new URL(API_URL);
+  const upstream = net.connect(api.port || 80, api.hostname, () => {
+    let request = `${req.method} ${req.url} HTTP/1.1\r\n`;
+    for (let i = 0; i < req.rawHeaders.length; i += 2) {
+      request += `${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}\r\n`;
+    }
+    upstream.write(request + '\r\n');
+    upstream.write(head);
+    socket.pipe(upstream).pipe(socket);
+  });
+
+  upstream.on('error', () => socket.destroy());
+  socket.on('error', () => upstream.destroy());
 });

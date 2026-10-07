@@ -37,10 +37,6 @@ export function joinGame(code, nickname) {
   return request('POST', `/api/games/${code}/players`, { nickname });
 }
 
-export function fetchGame(code) {
-  return request('GET', `/api/games/${code}`);
-}
-
 export function nextQuestion(code) {
   return request('POST', `/api/games/${code}/next`);
 }

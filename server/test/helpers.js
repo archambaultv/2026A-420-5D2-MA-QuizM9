@@ -45,15 +45,19 @@ export async function startServer() {
   process.env.SESSION_SECRET = 'secret-de-test';
 
   const { app } = await import('../src/app.js');
+  const { attachRealtime } = await import('../src/realtime.js');
   const repository = await import('../src/repository/index.js');
   const { COOKIE_NAME, signSession } = await import('../src/session.js');
 
   const server = app.listen(0); // 0 : n'importe quel port libre
   await new Promise((resolve) => server.once('listening', resolve));
+  const wss = attachRealtime(server);
   const base = `http://localhost:${server.address().port}`;
 
   return {
     base,
+    /** L'adresse WebSocket de l'API : ws://localhost:port/ws. */
+    wsUrl: `${base.replace('http', 'ws')}/ws`,
     /** Une requête JSON : retourne { status, data }. `cookie` : la session (voir login). */
     async request(method, path, body, cookie) {
       const headers = {};
@@ -89,6 +93,7 @@ export async function startServer() {
       return `${COOKIE_NAME}=${signSession({ accountId: account.id })}`;
     },
     async close() {
+      wss.close();
       await new Promise((resolve) => server.close(resolve));
       await repository.closeDatabase();
       if (!SQLITE) await admin(`DROP DATABASE ${dbName}`);
