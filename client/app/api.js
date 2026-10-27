@@ -44,3 +44,7 @@ export function nextQuestion(code) {
 export function sendAnswer(code, nickname, choiceId) {
   return request('POST', `/api/games/${code}/answers`, { nickname, choiceId });
 }
+
+export function setChatEnabled(code, enabled) {
+  return request('POST', `/api/games/${code}/chat`, { enabled });
+}

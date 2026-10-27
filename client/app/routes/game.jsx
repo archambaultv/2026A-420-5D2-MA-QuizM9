@@ -5,6 +5,7 @@ import { useGame } from '../useGame.js';
 import { getSession } from '../session.js';
 import Countdown from '../components/Countdown.jsx';
 import Leaderboard from '../components/Leaderboard.jsx';
+import Chat from '../components/Chat.jsx';
 
 /**
  * La salle de jeu : les questions défilent, le classement monte. La page
@@ -14,7 +15,7 @@ import Leaderboard from '../components/Leaderboard.jsx';
 export default function Game() {
   const { code } = useParams();
   const navigate = useNavigate();
-  const game = useGame(code);
+  const { game, chat, sendMessage } = useGame(code);
   const [session, setSession] = useState(null);
   // L'index de la dernière question à laquelle on a répondu : le bouton se
   // désactive après un clic, puis se réactive à la question suivante.
@@ -113,6 +114,8 @@ export default function Game() {
           <Leaderboard players={game.players} currentNickname={nickname} />
         </>
       )}
+
+      <Chat code={code} chat={chat} sendMessage={sendMessage} nickname={nickname} isHost={isHost} />
     </main>
   );
 }

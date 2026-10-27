@@ -36,9 +36,14 @@ async function join(code) {
   return { socket, reply };
 }
 
+/** Attend le prochain événement de ce nom sur cette connexion. */
+function next(socket, event) {
+  return new Promise((resolve) => socket.once(event, resolve));
+}
+
 /** Attend le prochain événement 'state' de cette connexion. */
 function nextState(socket) {
-  return new Promise((resolve) => socket.once('state', resolve));
+  return next(socket, 'state');
 }
 
 test('join répond tout de suite par l’état complet de la partie', async () => {
@@ -47,6 +52,7 @@ test('join répond tout de suite par l’état complet de la partie', async () =
 
   assert.equal(reply.game.code, code);
   assert.equal(reply.game.state, 'lobby');
+  assert.deepEqual(reply.chat, { enabled: true, messages: [] });
   socket.disconnect();
 });
 
@@ -94,4 +100,74 @@ test('le salon d’une autre partie ne reçoit rien', async () => {
   assert.equal(received, false);
   mine.socket.disconnect();
   other.socket.disconnect();
+});
+
+// ── Le chat ───────────────────────────────────────────────────────────────
+
+test('un message du chat arrive à tout le salon', async () => {
+  const code = await newGame();
+  await api.request('POST', `/api/games/${code}/players`, { nickname: 'zoé' });
+  const zoe = await join(code);
+  const host = await join(code);
+
+  const received = next(host.socket, 'chat:message');
+  const reply = await zoe.socket.emitWithAck('chat:send', { nickname: 'zoé', text: ' Bonjour ' });
+
+  assert.deepEqual(reply, {});
+  const message = await received;
+  assert.equal(message.nickname, 'zoé');
+  assert.equal(message.text, 'Bonjour');
+  zoe.socket.disconnect();
+  host.socket.disconnect();
+});
+
+test('une nouvelle connexion reçoit l’historique du chat au join', async () => {
+  const code = await newGame();
+  await api.request('POST', `/api/games/${code}/players`, { nickname: 'zoé' });
+  const zoe = await join(code);
+  await zoe.socket.emitWithAck('chat:send', { nickname: 'zoé', text: 'Premier !' });
+  zoe.socket.disconnect();
+
+  const later = await join(code);
+  assert.deepEqual(later.reply.chat.messages.map((m) => m.text), ['Premier !']);
+  later.socket.disconnect();
+});
+
+test('un pseudonyme inconnu ou un message vide est refusé', async () => {
+  const code = await newGame();
+  await api.request('POST', `/api/games/${code}/players`, { nickname: 'zoé' });
+  const { socket } = await join(code);
+
+  assert.ok((await socket.emitWithAck('chat:send', { nickname: 'max', text: 'Salut' })).error);
+  assert.ok((await socket.emitWithAck('chat:send', { nickname: 'zoé', text: '   ' })).error);
+  socket.disconnect();
+});
+
+test('chat désactivé par l’animateur : le salon est prévenu, le serveur refuse', async () => {
+  const code = await newGame();
+  await api.request('POST', `/api/games/${code}/players`, { nickname: 'zoé' });
+  const { socket } = await join(code);
+
+  const enabled = next(socket, 'chat:enabled');
+  const res = await api.request('POST', `/api/games/${code}/chat`, { enabled: false }, alice);
+  assert.equal(res.status, 200);
+  assert.equal(await enabled, false);
+
+  const reply = await socket.emitWithAck('chat:send', { nickname: 'zoé', text: 'Salut' });
+  assert.deepEqual(reply, { error: 'Le chat est désactivé.' });
+
+  await api.request('POST', `/api/games/${code}/chat`, { enabled: true }, alice);
+  assert.deepEqual(await socket.emitWithAck('chat:send', { nickname: 'zoé', text: 'Salut' }), {});
+  socket.disconnect();
+});
+
+test('seul l’animateur de la partie coupe le chat', async () => {
+  const code = await newGame();
+  const bob = await api.login('bob');
+
+  const anonymous = await api.request('POST', `/api/games/${code}/chat`, { enabled: false });
+  const other = await api.request('POST', `/api/games/${code}/chat`, { enabled: false }, bob);
+
+  assert.equal(anonymous.status, 401);
+  assert.equal(other.status, 403);
 });

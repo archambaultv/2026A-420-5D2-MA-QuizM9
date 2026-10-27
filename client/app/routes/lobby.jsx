@@ -4,6 +4,7 @@ import { nextQuestion } from '../api.js';
 import { useGame } from '../useGame.js';
 import { getSession } from '../session.js';
 import Leaderboard from '../components/Leaderboard.jsx';
+import Chat from '../components/Chat.jsx';
 
 /**
  * Le salon d'attente : le code s'affiche, les joueurs arrivent. Dès que
@@ -12,7 +13,7 @@ import Leaderboard from '../components/Leaderboard.jsx';
 export default function Lobby() {
   const { code } = useParams();
   const navigate = useNavigate();
-  const game = useGame(code);
+  const { game, chat, sendMessage } = useGame(code);
   const [session, setSession] = useState(null);
   const [error, setError] = useState(null);
 
@@ -57,6 +58,14 @@ export default function Lobby() {
         <p>En attente de l'animateur…</p>
       )}
       {error && <p className="error">{error}</p>}
+
+      <Chat
+        code={code}
+        chat={chat}
+        sendMessage={sendMessage}
+        nickname={session?.role === 'player' ? session.nickname : null}
+        isHost={session?.role === 'host'}
+      />
     </main>
   );
 }

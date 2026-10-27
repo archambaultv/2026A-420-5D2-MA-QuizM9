@@ -292,3 +292,36 @@ input[type='search'] {
   text-decoration: underline;
 }
 
+
+/* Le chat : les messages défilent dans une boîte de hauteur fixe. */
+.chat {
+  text-align: left;
+  margin-top: 2rem;
+}
+
+.chat h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.chat-messages {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.8rem;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.chat-messages li {
+  padding: 0.2rem 0;
+  overflow-wrap: anywhere;
+}
+
+.chat .notice {
+  margin: 0 0 0.6rem;
+}
+
+.chat-form {
+  grid-template-columns: 1fr auto;
+  margin-top: 0.6rem;
+}
