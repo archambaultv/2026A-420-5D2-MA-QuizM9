@@ -13,14 +13,15 @@
  * - l'ACCUSÉ DE RÉCEPTION (ack) : une fonction qui répond à CET envoi ;
  * - la reconnexion automatique, côté navigateur.
  *
- * QUI est au bout d'une connexion se décide UNE fois, à l'ouverture (la
- * poignée de main, une requête HTTP), dans l'intergiciel io.use :
- * - un joueur présente son jeton : io({ auth: { token } }) ;
- * - l'animateur est reconnu par son cookie de session, qui part tout seul
- *   avec la poignée de main, comme avec n'importe quelle requête ;
- * - les autres sont des spectateurs.
- * Le résultat est rangé dans socket.data, et les événements le relisent là :
- * le client ne dit plus qui il est à chaque message.
+ * QUI est au bout d'une connexion se décide UNE fois, à l'ouverture, dans
+ * l'intergiciel io.use. L'ouverture se fait en deux temps :
+ * 1. la poignée de main WebSocket (requête HTTP Upgrade) porte les cookies :
+ *    l'animateur est reconnu par son cookie de session ;
+ * 2. le premier message Socket.IO (CONNECT) porte l'objet auth : un joueur y
+ *    présente son jeton, io({ auth: { token } }).
+ * Les autres sont des spectateurs. Le résultat est rangé dans socket.data,
+ * et les événements le relisent là, au lieu de lire une identité dans le
+ * message.
  *
  * Les événements :
  *
@@ -85,9 +86,9 @@ async function stateWithPresence(code) {
 export function attachRealtime(server) {
   io = new Server(server);
 
-  // L'intergiciel de la poignée de main : il s'exécute une fois par
-  // connexion, avant 'connection'. next(new Error(...)) refuse la connexion ;
-  // le navigateur reçoit 'connect_error' avec ce message.
+  // L'intergiciel d'ouverture : il s'exécute une fois par connexion, à la
+  // réception du CONNECT, avant 'connection'. next(new Error(...)) refuse la
+  // connexion ; le navigateur reçoit 'connect_error' avec ce message.
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
     if (token !== undefined) {
@@ -95,7 +96,7 @@ export function attachRealtime(server) {
       if (!player) return next(new Error('Jeton invalide.'));
       socket.data.player = player;
     }
-    // socket.request : la requête HTTP de la poignée de main, avec ses cookies.
+    // socket.request : la requête HTTP de la poignée de main WebSocket, avec ses cookies.
     socket.data.accountId = readSession(socket.request).accountId ?? null;
     next();
   });

@@ -27,8 +27,9 @@ export function useGame(code) {
     // cette option, Socket.IO commence en HTTP (long polling) puis passe au
     // WebSocket, et nos relais (Vite, client/server.js) ne laissent passer
     // que le WebSocket.
-    // auth : le jeton du joueur, présenté UNE fois, à la poignée de main.
-    // L'animateur n'en a pas besoin : son cookie de session part tout seul.
+    // auth : le jeton du joueur, envoyé UNE fois, dans le premier message
+    // Socket.IO. L'animateur n'en a pas besoin : son cookie de session part
+    // avec la poignée de main WebSocket.
     const token = getSession(code)?.token;
     const socket = io({ transports: ['websocket'], auth: token ? { token } : {} });
     socketRef.current = socket;

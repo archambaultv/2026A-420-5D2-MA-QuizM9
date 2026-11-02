@@ -31,7 +31,7 @@ async function newGame() {
 /**
  * Ouvre une connexion et suit cette partie ; retourne la connexion et la
  * réponse à 'join'. `token` : le jeton d'un joueur ; `cookie` : la session
- * d'un compte, comme le navigateur l'enverrait avec la poignée de main.
+ * d'un compte, comme le navigateur l'enverrait avec la poignée de main WebSocket.
  */
 async function join(code, { token, cookie } = {}) {
   const socket = io(api.base, {
@@ -194,7 +194,7 @@ function connectError(token) {
   return new Promise((resolve) => socket.once('connect_error', (err) => resolve(err.message)));
 }
 
-test('un jeton falsifié est refusé dès la poignée de main', async () => {
+test('un jeton falsifié est refusé dès l’ouverture de la connexion', async () => {
   const code = await newGame();
   const token = await addPlayer(code, 'zoé');
   const forged = token.replace(/^[^.]+/, Buffer.from(JSON.stringify({ code, nickname: 'max' })).toString('base64url'));
