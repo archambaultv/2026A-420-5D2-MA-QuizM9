@@ -11,7 +11,7 @@ export function saveSession(code, session) {
   sessionStorage.setItem(`quizm9:${code}`, JSON.stringify(session));
 }
 
-/** @returns {null | {role: 'host'} | {role: 'player', nickname: string}} */
+/** @returns {null | {role: 'host'} | {role: 'player', nickname: string, token: string}} */
 export function getSession(code) {
   try {
     return JSON.parse(sessionStorage.getItem(`quizm9:${code}`));

@@ -76,5 +76,25 @@ export function clearSession(res) {
   res.clearCookie(COOKIE_NAME, { path: '/' });
 }
 
+/**
+ * Le jeton d'un joueur : la même idée que le cookie, des données signées.
+ * Le serveur le remet au joueur qui rejoint une partie ; le joueur le
+ * présente ensuite pour prouver qui il est (connexion Socket.IO, réponses).
+ *
+ * Pourquoi pas un cookie ? Un cookie est partagé par tous les onglets du
+ * navigateur, alors que chaque onglet peut être un joueur différent. Le
+ * jeton vit dans sessionStorage, un par onglet.
+ */
+export function signPlayerToken(code, nickname) {
+  return signSession({ code, nickname });
+}
+
+/** Relit un jeton de joueur : { code, nickname }, ou null s'il n'est pas valide. */
+export function verifyPlayerToken(token) {
+  if (typeof token !== 'string') return null; // il vient du client : n'importe quoi
+  const { code, nickname } = verifySession(token);
+  return code && nickname ? { code, nickname } : null;
+}
+
 /** Le nom du cookie, pour les tests qui en fabriquent un. */
 export { COOKIE_NAME };

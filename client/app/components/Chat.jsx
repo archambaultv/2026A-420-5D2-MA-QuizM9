@@ -19,7 +19,7 @@ export default function Chat({ code, chat, sendMessage, nickname, isHost }) {
   async function send(event) {
     event.preventDefault();
     try {
-      const reply = await sendMessage(nickname, text);
+      const reply = await sendMessage(text);
       if (reply.error) return setError(reply.error);
       setText('');
       setError(null);

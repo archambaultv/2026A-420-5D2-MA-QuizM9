@@ -13,8 +13,8 @@ export default function Home() {
   async function join(event) {
     event.preventDefault();
     try {
-      await joinGame(code.trim(), nickname.trim());
-      saveSession(code.trim(), { role: 'player', nickname: nickname.trim() });
+      const player = await joinGame(code.trim(), nickname.trim());
+      saveSession(code.trim(), { role: 'player', nickname: player.nickname, token: player.token });
       navigate(`/salon/${code.trim()}`);
     } catch (e) {
       setError(e.message);

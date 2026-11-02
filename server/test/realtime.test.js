@@ -28,12 +28,26 @@ async function newGame() {
   return game.data.code;
 }
 
-/** Ouvre une connexion et suit cette partie ; retourne la connexion et la réponse à 'join'. */
-async function join(code) {
-  const socket = io(api.base, { transports: ['websocket'] });
+/**
+ * Ouvre une connexion et suit cette partie ; retourne la connexion et la
+ * réponse à 'join'. `token` : le jeton d'un joueur ; `cookie` : la session
+ * d'un compte, comme le navigateur l'enverrait avec la poignée de main.
+ */
+async function join(code, { token, cookie } = {}) {
+  const socket = io(api.base, {
+    transports: ['websocket'],
+    auth: token ? { token } : {},
+    extraHeaders: cookie ? { cookie } : {},
+  });
   // emitWithAck : la réponse du serveur (l'ack), sous forme de promesse.
   const reply = await socket.emitWithAck('join', code);
   return { socket, reply };
+}
+
+/** Inscrit un joueur dans la partie ; retourne son jeton. */
+async function addPlayer(code, nickname) {
+  const res = await api.request('POST', `/api/games/${code}/players`, { nickname });
+  return res.data.token;
 }
 
 /** Attend le prochain événement de ce nom sur cette connexion. */
@@ -63,7 +77,7 @@ test('un joueur qui rejoint : le salon reçoit le nouvel état, sans le demander
   const state = nextState(socket);
   await api.request('POST', `/api/games/${code}/players`, { nickname: 'zoé' });
 
-  assert.deepEqual((await state).players, [{ nickname: 'zoé', score: 0 }]);
+  assert.deepEqual((await state).players, [{ nickname: 'zoé', score: 0, online: false }]);
   socket.disconnect();
 });
 
@@ -106,12 +120,11 @@ test('le salon d’une autre partie ne reçoit rien', async () => {
 
 test('un message du chat arrive à tout le salon', async () => {
   const code = await newGame();
-  await api.request('POST', `/api/games/${code}/players`, { nickname: 'zoé' });
-  const zoe = await join(code);
-  const host = await join(code);
+  const zoe = await join(code, { token: await addPlayer(code, 'zoé') });
+  const host = await join(code, { cookie: alice });
 
   const received = next(host.socket, 'chat:message');
-  const reply = await zoe.socket.emitWithAck('chat:send', { nickname: 'zoé', text: ' Bonjour ' });
+  const reply = await zoe.socket.emitWithAck('chat:send', { text: ' Bonjour ' });
 
   assert.deepEqual(reply, {});
   const message = await received;
@@ -123,9 +136,8 @@ test('un message du chat arrive à tout le salon', async () => {
 
 test('une nouvelle connexion reçoit l’historique du chat au join', async () => {
   const code = await newGame();
-  await api.request('POST', `/api/games/${code}/players`, { nickname: 'zoé' });
-  const zoe = await join(code);
-  await zoe.socket.emitWithAck('chat:send', { nickname: 'zoé', text: 'Premier !' });
+  const zoe = await join(code, { token: await addPlayer(code, 'zoé') });
+  await zoe.socket.emitWithAck('chat:send', { text: 'Premier !' });
   zoe.socket.disconnect();
 
   const later = await join(code);
@@ -133,31 +145,33 @@ test('une nouvelle connexion reçoit l’historique du chat au join', async () =
   later.socket.disconnect();
 });
 
-test('un pseudonyme inconnu ou un message vide est refusé', async () => {
+test('sans jeton, ou avec un message vide, le chat refuse', async () => {
   const code = await newGame();
-  await api.request('POST', `/api/games/${code}/players`, { nickname: 'zoé' });
-  const { socket } = await join(code);
+  const zoe = await join(code, { token: await addPlayer(code, 'zoé') });
+  const spectator = await join(code);
 
-  assert.ok((await socket.emitWithAck('chat:send', { nickname: 'max', text: 'Salut' })).error);
-  assert.ok((await socket.emitWithAck('chat:send', { nickname: 'zoé', text: '   ' })).error);
-  socket.disconnect();
+  // Le pseudonyme du message est ignoré : c'est le jeton qui dit qui écrit.
+  const reply = await spectator.socket.emitWithAck('chat:send', { text: 'Salut' });
+  assert.ok(reply.error);
+  assert.ok((await zoe.socket.emitWithAck('chat:send', { text: '   ' })).error);
+  zoe.socket.disconnect();
+  spectator.socket.disconnect();
 });
 
 test('chat désactivé par l’animateur : le salon est prévenu, le serveur refuse', async () => {
   const code = await newGame();
-  await api.request('POST', `/api/games/${code}/players`, { nickname: 'zoé' });
-  const { socket } = await join(code);
+  const { socket } = await join(code, { token: await addPlayer(code, 'zoé') });
 
   const enabled = next(socket, 'chat:enabled');
   const res = await api.request('POST', `/api/games/${code}/chat`, { enabled: false }, alice);
   assert.equal(res.status, 200);
   assert.equal(await enabled, false);
 
-  const reply = await socket.emitWithAck('chat:send', { nickname: 'zoé', text: 'Salut' });
+  const reply = await socket.emitWithAck('chat:send', { text: 'Salut' });
   assert.deepEqual(reply, { error: 'Le chat est désactivé.' });
 
   await api.request('POST', `/api/games/${code}/chat`, { enabled: true }, alice);
-  assert.deepEqual(await socket.emitWithAck('chat:send', { nickname: 'zoé', text: 'Salut' }), {});
+  assert.deepEqual(await socket.emitWithAck('chat:send', { text: 'Salut' }), {});
   socket.disconnect();
 });
 
@@ -170,4 +184,95 @@ test('seul l’animateur de la partie coupe le chat', async () => {
 
   assert.equal(anonymous.status, 401);
   assert.equal(other.status, 403);
+});
+
+// ── Le jeton du joueur ────────────────────────────────────────────────────
+
+/** Attend l'erreur de connexion (connect_error) de cette connexion. */
+function connectError(token) {
+  const socket = io(api.base, { transports: ['websocket'], auth: { token } });
+  return new Promise((resolve) => socket.once('connect_error', (err) => resolve(err.message)));
+}
+
+test('un jeton falsifié est refusé dès la poignée de main', async () => {
+  const code = await newGame();
+  const token = await addPlayer(code, 'zoé');
+  const forged = token.replace(/^[^.]+/, Buffer.from(JSON.stringify({ code, nickname: 'max' })).toString('base64url'));
+
+  assert.equal(await connectError(forged), 'Jeton invalide.');
+  assert.equal(await connectError('n’importe quoi'), 'Jeton invalide.');
+});
+
+test('le jeton d’une partie ne permet pas de jouer dans une autre', async () => {
+  const token = await addPlayer(await newGame(), 'zoé');
+  const { socket, reply } = await join(await newGame(), { token });
+
+  assert.deepEqual(reply, { error: 'Ce jeton est celui d’une autre partie.' });
+  socket.disconnect();
+});
+
+test('une réponse sans le jeton du joueur est refusée', async () => {
+  const code = await newGame();
+  const token = await addPlayer(code, 'zoé');
+  const state = await api.request('POST', `/api/games/${code}/next`, undefined, alice);
+  const choiceId = state.data.question.choices[0].id;
+
+  const anonymous = await api.request('POST', `/api/games/${code}/answers`, { choiceId });
+  assert.equal(anonymous.status, 401);
+
+  const res = await fetch(`${api.base}/api/games/${code}/answers`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify({ choiceId }),
+  });
+  assert.equal(res.status, 201);
+});
+
+// ── La présence ───────────────────────────────────────────────────────────
+
+test('un joueur qui se connecte puis part : le salon le voit en ligne, puis hors ligne', async () => {
+  const code = await newGame();
+  const token = await addPlayer(code, 'zoé');
+  const host = await join(code, { cookie: alice });
+  assert.equal(host.reply.game.players[0].online, false);
+
+  const arrived = nextState(host.socket);
+  const zoe = await join(code, { token });
+  assert.equal((await arrived).players[0].online, true);
+
+  const left = nextState(host.socket);
+  zoe.socket.disconnect();
+  assert.equal((await left).players[0].online, false);
+  host.socket.disconnect();
+});
+
+test('deux onglets du même joueur : en fermer un ne le met pas hors ligne', async () => {
+  const code = await newGame();
+  const token = await addPlayer(code, 'zoé');
+  const host = await join(code, { cookie: alice });
+  const tab1 = await join(code, { token });
+  const tab2 = await join(code, { token });
+
+  const state = nextState(host.socket);
+  tab1.socket.disconnect();
+  assert.equal((await state).players[0].online, true);
+  tab2.socket.disconnect();
+  host.socket.disconnect();
+});
+
+test('l’animateur est reconnu par son cookie ; les autres connexions sont des spectateurs', async () => {
+  const code = await newGame();
+  const bob = await api.login('bob');
+  const host = await join(code, { cookie: alice });
+  const other = await join(code, { cookie: bob }); // connecté, mais pas l'animateur de CETTE partie
+  const anonymous = await join(code);
+
+  assert.equal(anonymous.reply.game.hostOnline, true);
+  assert.equal(anonymous.reply.game.spectatorCount, 2);
+
+  const state = nextState(anonymous.socket);
+  host.socket.disconnect();
+  assert.equal((await state).hostOnline, false);
+  other.socket.disconnect();
+  anonymous.socket.disconnect();
 });

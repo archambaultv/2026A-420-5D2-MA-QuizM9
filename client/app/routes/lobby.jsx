@@ -13,7 +13,7 @@ import Chat from '../components/Chat.jsx';
 export default function Lobby() {
   const { code } = useParams();
   const navigate = useNavigate();
-  const { game, chat, sendMessage } = useGame(code);
+  const { game, chat, error: connectionError, sendMessage } = useGame(code);
   const [session, setSession] = useState(null);
   const [error, setError] = useState(null);
 
@@ -28,7 +28,7 @@ export default function Lobby() {
     }
   }, [game, code, navigate]);
 
-  if (!game) return <main className="screen">Chargement…</main>;
+  if (!game) return <main className="screen">{connectionError ?? 'Chargement…'}</main>;
 
   async function start() {
     try {
@@ -45,7 +45,10 @@ export default function Lobby() {
         <p className="code">
           Code de partie : <strong>{game.code}</strong>
         </p>
+        <p className="watchers">{game.spectatorCount} spectateur(s)</p>
       </header>
+
+      {!game.hostOnline && <p className="notice">L'animateur s'est déconnecté.</p>}
 
       <h2>Salon d'attente — {game.players.length} joueur(s)</h2>
       <Leaderboard players={game.players} currentNickname={session?.nickname} />

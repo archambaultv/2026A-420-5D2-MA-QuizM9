@@ -7,10 +7,13 @@
  * serveur Express (voir vite.config.js). Un loader ne passe pas par ici —
  * il s'exécute côté serveur, où ce relais n'existe pas.
  */
-async function request(method, path, body) {
+async function request(method, path, body, token) {
+  const headers = {};
+  if (body) headers['content-type'] = 'application/json';
+  if (token) headers.authorization = `Bearer ${token}`; // le jeton du joueur
   const response = await fetch(path, {
     method,
-    headers: body ? { 'content-type': 'application/json' } : {},
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await response.json().catch(() => null);
@@ -33,6 +36,7 @@ export function createGame(quizId) {
   return request('POST', '/api/games', { quizId });
 }
 
+/** Rejoint une partie ; la réponse porte le jeton du joueur : { nickname, token }. */
 export function joinGame(code, nickname) {
   return request('POST', `/api/games/${code}/players`, { nickname });
 }
@@ -41,8 +45,8 @@ export function nextQuestion(code) {
   return request('POST', `/api/games/${code}/next`);
 }
 
-export function sendAnswer(code, nickname, choiceId) {
-  return request('POST', `/api/games/${code}/answers`, { nickname, choiceId });
+export function sendAnswer(code, token, choiceId) {
+  return request('POST', `/api/games/${code}/answers`, { choiceId }, token);
 }
 
 export function setChatEnabled(code, enabled) {

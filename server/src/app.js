@@ -28,10 +28,10 @@
  *   POST   /api/quizzes/:id/questions         201 { id }         corps : { text, durationSeconds, choices }
  *   DELETE /api/quizzes/:id/questions/:qid    200 {}
  *   POST /api/games                    201 { code }        corps : { quizId }  (connecté)
- *   POST /api/games/:code/players     201 { nickname }    corps : { nickname }
+ *   POST /api/games/:code/players     201 { nickname, token }  corps : { nickname }
  *   GET  /api/games/:code              200 état public
  *   POST /api/games/:code/next        200 état public     (animateur)
- *   POST /api/games/:code/answers     201 {}              corps : { nickname, choiceId }
+ *   POST /api/games/:code/answers     201 {}              corps : { choiceId }  (jeton du joueur)
  *   POST /api/games/:code/chat        200 { enabled }     corps : { enabled }  (animateur)
  *
  * Toute erreur a la forme { error: "un message" } : 404 si la ressource
@@ -40,6 +40,9 @@
  *
  * Chaque route qui change une partie prévient ensuite les navigateurs qui la
  * suivent, par Socket.IO (broadcastState, voir realtime.js).
+ *
+ * Un joueur n'a pas de compte : il prouve qui il est par le jeton reçu en
+ * rejoignant, dans l'en-tête  Authorization: Bearer <jeton>.
  *
  * Les routes de l'auteur passent par requireAccount puis requireQuizAuthor
  * (authorization.js) : l'autorisation se décide ici, dans l'API, et une
@@ -58,6 +61,7 @@ import {
   publicState,
 } from './game.js';
 import { broadcastState, closeAtDeadline, setChatEnabled } from './realtime.js';
+import { signPlayerToken, verifyPlayerToken } from './session.js';
 
 await repository.initializeDatabase();
 
@@ -73,6 +77,13 @@ async function requestedGame(req, res) {
     return null;
   }
   return game;
+}
+
+/** Le pseudonyme que prouve le jeton de la requête, pour cette partie ; sinon null. */
+function requestPlayer(req, game) {
+  const token = (req.get('authorization') ?? '').replace(/^Bearer /, '');
+  const player = verifyPlayerToken(token);
+  return player?.code === game.code ? player.nickname : null;
 }
 
 // Tous les questionnaires : le catalogue. Avec ?q=, ceux dont le titre
@@ -229,7 +240,7 @@ app.post('/api/games/:code/players', async (req, res) => {
 
   await repository.addPlayer(game.id, nickname);
   await broadcastState(game.code);
-  res.status(201).json({ nickname });
+  res.status(201).json({ nickname, token: signPlayerToken(game.code, nickname) });
 });
 
 // L'état de la partie. Le navigateur ne la sonde plus (il reçoit l'état par
@@ -270,7 +281,13 @@ app.post('/api/games/:code/answers', async (req, res) => {
     return res.status(400).json({ error: 'Aucune question en cours.' });
   }
 
-  const { nickname, choiceId } = req.body ?? {};
+  // Le pseudonyme vient du jeton, pas du corps : sinon n'importe qui
+  // répondrait à la place d'un autre.
+  const nickname = requestPlayer(req, game);
+  if (!nickname) {
+    return res.status(401).json({ error: 'Jeton de joueur absent ou invalide.' });
+  }
+  const { choiceId } = req.body ?? {};
   const player = await repository.findPlayer(game.id, nickname);
   if (!player) {
     return res.status(400).json({ error: 'Joueur inconnu dans cette partie.' });
@@ -286,7 +303,7 @@ app.post('/api/games/:code/answers', async (req, res) => {
   // Le moment de la réponse est celui du SERVEUR : le bonus de rapidité ne
   // se négocie pas avec l'horloge du client (on y reviendra, semaine 11).
   await repository.recordAnswer(game.id, player.id, question.id, choiceId, Date.now());
-  await broadcastState(game.code); // l'animateur voit le compte de réponses monter
+  await broadcastState(game.code); // tout le salon voit le compte de réponses monter
   res.status(201).json({});
 });
 
