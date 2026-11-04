@@ -33,5 +33,6 @@ export {
   getPlayers,
   recordAnswer,
   setAnswerPoints,
+  transitionGame,
   updateGameState,
 } from './games.js';

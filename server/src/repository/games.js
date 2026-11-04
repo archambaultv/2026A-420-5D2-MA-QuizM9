@@ -76,8 +76,8 @@ export async function findAnswer(gameId, playerId, questionId) {
 }
 
 /** Les réponses reçues pour une question, en ordre d'arrivée (horloge du serveur). */
-export async function getAnswersForQuestion(gameId, questionId) {
-  const { rows } = await pool.query(
+export async function getAnswersForQuestion(gameId, questionId, db = pool) {
+  const { rows } = await db.query(
     `SELECT id, player_id, choice_id, answered_at, points
        FROM answer
       WHERE game_id = $1 AND question_id = $2
@@ -118,7 +118,30 @@ export async function recordAnswer(gameId, playerId, questionId, choiceId, answe
   return rows[0]?.id ?? null;
 }
 
-/** Fait avancer la machine à états d'une partie, d'un seul UPDATE. */
+/**
+ * Fait passer la partie d'un état à un autre, SEULEMENT si elle est encore
+ * dans l'état de départ. La condition est dans le WHERE : la vérification et
+ * l'écriture forment une seule requête, qu'aucune autre ne peut couper.
+ *
+ *   from : { state, questionIndex }                     l'état attendu
+ *   to   : { state, questionIndex, questionStartedAt }  le nouvel état
+ *
+ * Dans une transaction, l'UPDATE verrouille aussi la ligne game jusqu'au
+ * COMMIT : une autre transaction qui veut la modifier attend son tour.
+ *
+ * @returns {Promise<boolean>} true si la partie a changé ; false si une
+ *   autre requête l'avait déjà fait changer
+ */
+export async function transitionGame(gameId, from, to, db = pool) {
+  const { rowCount } = await db.query(
+    `UPDATE game SET state = $1, question_index = $2, question_started_at = $3
+      WHERE id = $4 AND state = $5 AND question_index = $6`,
+    [to.state, to.questionIndex, to.questionStartedAt, gameId, from.state, from.questionIndex],
+  );
+  return rowCount === 1;
+}
+
+/** Fait avancer la machine à états d'une partie, d'un seul UPDATE, sans condition. */
 export async function updateGameState(gameId, state, questionIndex, questionStartedAt, db = pool) {
   await db.query(
     'UPDATE game SET state = $1, question_index = $2, question_started_at = $3 WHERE id = $4',

@@ -46,20 +46,34 @@ function deadlineOf(game, question) {
  * et l'ajoute au total du joueur. Le bonus de la première bonne réponse va à
  * la première bonne réponse dans l'ordre d'arrivée (horloge du serveur).
  *
- * Trois écritures qui doivent réussir ensemble (les points de chaque
- * réponse, les totaux des joueurs, l'état de la partie), donc une
- * transaction : toutes passent par la connexion `tx` qu'elle a empruntée.
+ * Plusieurs requêtes peuvent vouloir clore la même question en même temps
+ * (le minuteur, le clic de l'animateur, trente navigateurs à l'échéance).
+ * `game` a été lu AVANT : son état est peut-être déjà périmé. Une seule doit
+ * gagner, et c'est la base qui décide : la transaction commence par faire
+ * passer la partie de 'question' à 'results' (transitionGame). Les autres
+ * reçoivent false et n'écrivent rien.
+ *
+ * @returns {Promise<boolean>} true si c'est cet appel qui a clos la question
  */
 export async function closeQuestion(game) {
-  if (game.state !== 'question') return;
+  if (game.state !== 'question') return false;
   const question = await currentQuestion(game);
   const correctChoices = new Set(
     question.choices.filter((c) => c.isCorrect).map((c) => c.id),
   );
   const questionDurationMs = question.durationSeconds * 1000;
-  const answers = await repository.getAnswersForQuestion(game.id, question.id);
 
-  await repository.withTransaction(async (tx) => {
+  const closed = await repository.withTransaction(async (tx) => {
+    const won = await repository.transitionGame(
+      game.id,
+      { state: 'question', questionIndex: game.question_index },
+      { state: 'results', questionIndex: game.question_index, questionStartedAt: null },
+      tx,
+    );
+    if (!won) return false; // une autre requête l'a close avant nous
+
+    // Les réponses sont lues APRÈS le changement d'état, dans la transaction.
+    const answers = await repository.getAnswersForQuestion(game.id, question.id, tx);
     let firstAwarded = false;
     for (const answer of answers) {
       const responseTimeMs = answer.answered_at - game.question_started_at;
@@ -77,10 +91,11 @@ export async function closeQuestion(game) {
       await repository.setAnswerPoints(answer.id, points, tx);
       await repository.addPointsToPlayer(answer.player_id, points, tx);
     }
-    await repository.updateGameState(game.id, 'results', game.question_index, null, tx);
+    return true;
   });
   game.state = 'results';
   game.question_started_at = null;
+  return closed;
 }
 
 /** Clôt la question courante si son échéance est passée. */
