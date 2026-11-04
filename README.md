@@ -9,8 +9,9 @@ Le dépôt grandit d'une semaine à l'autre. **L'énoncé du travail de la semai
 est sur le site du cours**, sous
 [Exercices](https://archambaultv.github.io/2026A-420-5D2-MA/g2/notes_de_cours/exercices).
 
-> **Semaine 10.** Le point de départ est la solution de l'atelier 2 : le chat
-> est en place dans le salon et la salle de jeu.
+> **Semaine 11.** Le point de départ est la solution de la semaine 10. Les
+> tests de l'exercice 17 sont fournis et échouent au départ :
+> `npm run test:concurrence -w server`.
 
 ## Prérequis
 

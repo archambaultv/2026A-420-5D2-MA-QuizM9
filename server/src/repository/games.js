@@ -78,7 +78,7 @@ export async function findAnswer(gameId, playerId, questionId) {
 /** Les réponses reçues pour une question, en ordre d'arrivée (horloge du serveur). */
 export async function getAnswersForQuestion(gameId, questionId) {
   const { rows } = await pool.query(
-    `SELECT id, player_id, choice_id, answered_at
+    `SELECT id, player_id, choice_id, answered_at, points
        FROM answer
       WHERE game_id = $1 AND question_id = $2
       ORDER BY answered_at, id`,

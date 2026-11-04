@@ -6,7 +6,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { io } from 'socket.io-client';
-import { startServer } from './helpers.js';
+import { START, startServer } from './helpers.js';
 
 let api;
 let alice;
@@ -87,7 +87,7 @@ test('l’animateur lance la partie : la question arrive par Socket.IO', async (
   const { socket } = await join(code);
 
   const state = nextState(socket);
-  await api.request('POST', `/api/games/${code}/next`, undefined, alice);
+  await api.request('POST', `/api/games/${code}/next`, START, alice);
 
   const game = await state;
   assert.equal(game.state, 'question');
@@ -214,7 +214,7 @@ test('le jeton d’une partie ne permet pas de jouer dans une autre', async () =
 test('une réponse sans le jeton du joueur est refusée', async () => {
   const code = await newGame();
   const token = await addPlayer(code, 'zoé');
-  const state = await api.request('POST', `/api/games/${code}/next`, undefined, alice);
+  const state = await api.request('POST', `/api/games/${code}/next`, START, alice);
   const choiceId = state.data.question.choices[0].id;
 
   const anonymous = await api.request('POST', `/api/games/${code}/answers`, { choiceId });

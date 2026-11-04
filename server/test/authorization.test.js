@@ -4,7 +4,7 @@
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { startServer } from './helpers.js';
+import { START, startServer } from './helpers.js';
 
 let api;
 let alice;
@@ -81,10 +81,10 @@ test('Bob ne peut pas faire avancer la partie d’Alice (403)', async () => {
   const quizId = await aliceQuiz();
   const { data } = await api.request('POST', '/api/games', { quizId }, alice);
 
-  const refused = await api.request('POST', `/api/games/${data.code}/next`, undefined, bob);
+  const refused = await api.request('POST', `/api/games/${data.code}/next`, START, bob);
   assert.equal(refused.status, 403);
 
-  const accepted = await api.request('POST', `/api/games/${data.code}/next`, undefined, alice);
+  const accepted = await api.request('POST', `/api/games/${data.code}/next`, START, alice);
   assert.equal(accepted.status, 200);
   assert.equal(accepted.data.state, 'question');
 });

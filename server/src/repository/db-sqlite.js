@@ -9,7 +9,14 @@
  *   - les paramètres $1, $2, … deviennent ?1, ?2, … ;
  *   - ILIKE devient LIKE (le LIKE de SQLite ignore déjà la casse) ;
  *   - les booléens deviennent 0 et 1 (SQLite n'en a pas) ;
+ *   - FOR SHARE et FOR UPDATE disparaissent : SQLite verrouille déjà toute
+ *     la base à chaque écriture ;
  *   - le schéma est schema.sqlite.sql (pas de GENERATED AS IDENTITY).
+ *
+ * Une limite : SQLite n'a qu'une connexion. Deux transactions simultanées
+ * passent donc à tour de rôle (voir connect), et une requête lancée hors
+ * transaction pendant ce temps voit ce que la transaction a déjà écrit.
+ * Pour la concurrence, PostgreSQL reste la référence.
  */
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, readFileSync } from 'node:fs';
@@ -28,7 +35,16 @@ db.exec('PRAGMA foreign_keys = ON');
 
 /** Exécute une requête écrite pour pg et répond comme pg. */
 async function query(sql, params = []) {
-  const statement = db.prepare(sql.replace(/\$(\d+)/g, '?$1').replace(/\bILIKE\b/g, 'LIKE'));
+  // node:sqlite répond sur-le-champ, PostgreSQL répond par le réseau, plus
+  // tard. On imite ce délai : sans lui, deux requêtes HTTP ne se croiseraient
+  // jamais, et les bogues de concurrence resteraient invisibles.
+  await new Promise((resolve) => setImmediate(resolve));
+  const statement = db.prepare(
+    sql
+      .replace(/\$(\d+)/g, '?$1')
+      .replace(/\bILIKE\b/g, 'LIKE')
+      .replace(/\bFOR (SHARE|UPDATE)\b/gi, ''),
+  );
   const values = params.map((v) => (typeof v === 'boolean' ? Number(v) : v));
 
   // Une requête qui produit des lignes se lit avec all() ; une écriture
@@ -41,11 +57,22 @@ async function query(sql, params = []) {
   return { rows: [], rowCount: changes };
 }
 
-// SQLite n'a qu'une connexion : « l'emprunter » revient à la rendre telle quelle.
+// SQLite n'a qu'une connexion. Deux BEGIN sur la même connexion lèvent une
+// erreur : connect() fait donc attendre son tour à chaque transaction, jusqu'à
+// ce que la précédente appelle release().
+let queue = Promise.resolve();
+
 export const pool = {
   query,
   async connect() {
-    return { query, release() {} };
+    let release;
+    const done = new Promise((resolve) => {
+      release = resolve;
+    });
+    const previous = queue;
+    queue = queue.then(() => done);
+    await previous;
+    return { query, release };
   },
 };
 

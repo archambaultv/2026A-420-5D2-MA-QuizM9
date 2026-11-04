@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "node --env-file-if-exists=.env --watch src/server.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "test:concurrence": "node --test test/concurrence.test.js"
   },
   "dependencies": {
     "express": "^5.2.1",

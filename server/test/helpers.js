@@ -28,6 +28,12 @@ async function admin(sql) {
   }
 }
 
+/**
+ * Le corps de POST /api/games/:code/next pour lancer une partie : l'état que
+ * l'animateur a sous les yeux quand il clique (semaine 11).
+ */
+export const START = { state: 'lobby', questionIndex: -1 };
+
 /** Démarre l'API et retourne son adresse et une fonction pour l'arrêter. */
 export async function startServer() {
   const dbName = `quizm9_test_${randomBytes(4).toString('hex')}`;
