@@ -33,7 +33,7 @@
  *   POST /api/games/:code/next        200 état public     corps : { state, questionIndex }  (animateur)
  *                                     409 la partie a déjà avancé
  *   POST /api/games/:code/answers     201 {}              corps : { choiceId }  (jeton du joueur)
- *                                     409 déjà répondu
+ *                                     409 déjà répondu, ou question close
  *   POST /api/games/:code/chat        200 { enabled }     corps : { enabled }  (animateur)
  *
  * Toute erreur a la forme { error: "un message" } : 404 si la ressource
@@ -313,14 +313,16 @@ app.post('/api/games/:code/answers', async (req, res) => {
     return res.status(400).json({ error: 'Choix inconnu pour cette question.' });
   }
 
-  // Pas de « a-t-il déjà répondu ? » avant d'insérer : entre la question et
-  // l'INSERT, une autre requête du même joueur peut passer. C'est la base
-  // (l'index answer_once) qui tranche.
+  // Pas de « a-t-il déjà répondu ? » ni de « la question est-elle encore
+  // ouverte ? » juste avant d'insérer : entre la vérification et l'INSERT,
+  // une autre requête peut passer. C'est la base qui tranche, dans l'INSERT.
   // Le moment de la réponse est celui du SERVEUR : le bonus de rapidité ne
   // se négocie pas avec l'horloge du client.
-  const answerId = await repository.recordAnswer(game.id, player.id, question.id, choiceId, Date.now());
+  const answerId = await repository.recordAnswer(
+    game.id, player.id, question.id, choiceId, Date.now(), game.question_index,
+  );
   if (answerId === null) {
-    return res.status(409).json({ error: 'Ce joueur a déjà répondu.' });
+    return res.status(409).json({ error: 'Déjà répondu, ou la question est close.' });
   }
   await broadcastState(game.code); // tout le salon voit le compte de réponses monter
   res.status(201).json({});

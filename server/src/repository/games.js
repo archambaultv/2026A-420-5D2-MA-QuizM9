@@ -99,21 +99,33 @@ export async function countAnswers(gameId, questionId) {
 // ── Les écritures en cours de partie ──────────────────────────────────────
 
 /**
- * Enregistre la réponse d'un joueur. answeredAt vient de l'horloge du
- * serveur (Date.now()), jamais du client.
+ * Enregistre la réponse d'un joueur, SEULEMENT si la question questionIndex
+ * est encore ouverte. answeredAt vient de l'horloge du serveur (Date.now()),
+ * jamais du client.
  *
- * ON CONFLICT DO NOTHING : si le joueur a déjà répondu (l'index answer_once),
- * rien n'est inséré, sans erreur, et RETURNING ne retourne aucune ligne.
+ * - INSERT … SELECT … WHERE EXISTS : la ligne n'est insérée que si la partie
+ *   est encore sur cette question. Vérifier et insérer : une seule requête.
+ * - FOR SHARE : si une clôture est en cours (elle a verrouillé la ligne game),
+ *   on attend son COMMIT, puis on relit l'état : 'results', donc rien
+ *   d'inséré. Sans lui, l'INSERT verrait l'état d'avant la clôture et la
+ *   réponse arriverait trop tard pour être comptée.
+ * - ON CONFLICT DO NOTHING : si le joueur a déjà répondu (l'index
+ *   answer_once), rien n'est inséré, sans erreur.
  *
  * @returns {Promise<number|null>} l'id de la réponse, ou null si refusée
  */
-export async function recordAnswer(gameId, playerId, questionId, choiceId, answeredAt) {
+export async function recordAnswer(gameId, playerId, questionId, choiceId, answeredAt, questionIndex) {
   const { rows } = await pool.query(
     `INSERT INTO answer (game_id, player_id, question_id, choice_id, answered_at)
-     VALUES ($1, $2, $3, $4, $5)
+     SELECT $1, $2, $3, $4, $5
+      WHERE EXISTS (
+        SELECT 1 FROM game
+         WHERE id = $1 AND state = 'question' AND question_index = $6
+           FOR SHARE
+      )
      ON CONFLICT DO NOTHING
      RETURNING id`,
-    [gameId, playerId, questionId, choiceId, answeredAt],
+    [gameId, playerId, questionId, choiceId, answeredAt, questionIndex],
   );
   return rows[0]?.id ?? null;
 }
