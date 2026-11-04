@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 
 /**
- * Le temps restant, calculé à partir de l'échéance donnée par le serveur.
+ * Le temps restant jusqu'à l'échéance, sur l'horloge du navigateur (voir
+ * useGame.js).
  *
  * Le serveur n'envoie rien tant que la partie ne change pas : c'est le
  * composant qui se redessine, quatre fois par seconde. Un minuteur local,

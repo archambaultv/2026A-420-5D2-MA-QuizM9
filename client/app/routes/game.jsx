@@ -79,7 +79,7 @@ export default function Game() {
             Question {game.questionIndex + 1} / {game.questionCount}
           </p>
           <h2>{game.question.text}</h2>
-          <Countdown deadline={game.question.deadline} />
+          <Countdown deadline={game.question.localDeadline} />
           {/* Pour tout le monde, et sur les joueurs EN LIGNE : un joueur parti
               ne fait plus attendre la salle. */}
           <p>

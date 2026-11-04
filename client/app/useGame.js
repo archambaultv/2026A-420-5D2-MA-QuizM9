@@ -14,6 +14,18 @@ import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { getSession } from './session.js';
 
+/**
+ * L'échéance d'une question est une heure du SERVEUR, et l'horloge du
+ * navigateur peut avoir des secondes d'avance ou de retard. On convertit le
+ * temps restant (remainingMs) en échéance sur l'horloge locale, à la
+ * réception. Le délai du réseau (quelques ms) est négligé.
+ */
+function withLocalDeadline(game) {
+  if (!game.question) return game;
+  const localDeadline = Date.now() + game.question.remainingMs;
+  return { ...game, question: { ...game.question, localDeadline } };
+}
+
 export function useGame(code) {
   const [game, setGame] = useState(null);
   const [chat, setChat] = useState({ enabled: true, messages: [] });
@@ -40,7 +52,7 @@ export function useGame(code) {
     socket.on('connect', () => {
       socket.emit('join', code, (reply) => {
         if (reply.error) return setError(reply.error);
-        if (reply.game) setGame(reply.game);
+        if (reply.game) setGame(withLocalDeadline(reply.game));
         // L'historique REMPLACE ce qu'on avait : rien en double, rien de manqué.
         if (reply.chat) setChat(reply.chat);
       });
@@ -52,7 +64,7 @@ export function useGame(code) {
       if (!socket.active) setError(err.message);
     });
 
-    socket.on('state', setGame);
+    socket.on('state', (game) => setGame(withLocalDeadline(game)));
     socket.on('chat:message', (message) => {
       setChat((chat) => ({ ...chat, messages: [...chat.messages, message] }));
     });

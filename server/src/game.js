@@ -128,6 +128,9 @@ export async function advance(game) {
  * L'état visible par les clients, relu au complet dans la base. Les choix
  * sont transmis SANS is_correct : le serveur ne dit jamais au navigateur où
  * est la bonne réponse.
+ *
+ * remainingMs : le temps restant, plutôt qu'une heure. L'horloge du
+ * navigateur peut être décalée, une durée ne l'est jamais (voir useGame.js).
  */
 export async function publicState(code) {
   const game = await repository.findGameByCode(code);
@@ -143,6 +146,7 @@ export async function publicState(code) {
     question: question && {
       text: question.text,
       deadline: deadlineOf(game, question),
+      remainingMs: deadlineOf(game, question) - Date.now(),
       choices: question.choices.map((c) => ({ id: c.id, text: c.text })),
     },
     players: players.map((p) => ({ nickname: p.nickname, score: p.score })),
