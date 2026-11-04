@@ -102,16 +102,20 @@ export async function countAnswers(gameId, questionId) {
  * Enregistre la réponse d'un joueur. answeredAt vient de l'horloge du
  * serveur (Date.now()), jamais du client.
  *
- * @returns {Promise<number>} l'id de la réponse enregistrée
+ * ON CONFLICT DO NOTHING : si le joueur a déjà répondu (l'index answer_once),
+ * rien n'est inséré, sans erreur, et RETURNING ne retourne aucune ligne.
+ *
+ * @returns {Promise<number|null>} l'id de la réponse, ou null si refusée
  */
 export async function recordAnswer(gameId, playerId, questionId, choiceId, answeredAt) {
   const { rows } = await pool.query(
     `INSERT INTO answer (game_id, player_id, question_id, choice_id, answered_at)
      VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT DO NOTHING
      RETURNING id`,
     [gameId, playerId, questionId, choiceId, answeredAt],
   );
-  return rows[0].id;
+  return rows[0]?.id ?? null;
 }
 
 /** Fait avancer la machine à états d'une partie, d'un seul UPDATE. */

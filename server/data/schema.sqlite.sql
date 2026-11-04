@@ -84,5 +84,8 @@ CREATE TABLE IF NOT EXISTS answer (
   -- Points obtenus ; NULL tant que la question n'est pas close.
   points      INTEGER
 );
--- (game_id, player_id, question_id) devrait être UNIQUE : un joueur, une
--- réponse par question. On y reviendra à la semaine 11.
+-- Un joueur, une réponse par question : c'est la base qui le garantit, même
+-- quand deux requêtes arrivent en même temps. Un index plutôt qu'une clause
+-- UNIQUE dans CREATE TABLE : IF NOT EXISTS l'ajoute aussi à une base qui
+-- existe déjà.
+CREATE UNIQUE INDEX IF NOT EXISTS answer_once ON answer (game_id, player_id, question_id);

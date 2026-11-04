@@ -32,11 +32,13 @@
  *   GET  /api/games/:code              200 état public
  *   POST /api/games/:code/next        200 état public     (animateur)
  *   POST /api/games/:code/answers     201 {}              corps : { choiceId }  (jeton du joueur)
+ *                                     409 déjà répondu
  *   POST /api/games/:code/chat        200 { enabled }     corps : { enabled }  (animateur)
  *
  * Toute erreur a la forme { error: "un message" } : 404 si la ressource
  * n'existe pas, 400 pour une demande invalide, 401 s'il faut être connecté,
- * 403 si le compte connecté n'a pas le droit.
+ * 403 si le compte connecté n'a pas le droit, 409 si la partie a changé
+ * entre-temps (conflit).
  *
  * Chaque route qui change une partie prévient ensuite les navigateurs qui la
  * suivent, par Socket.IO (broadcastState, voir realtime.js).
@@ -293,16 +295,19 @@ app.post('/api/games/:code/answers', async (req, res) => {
     return res.status(400).json({ error: 'Joueur inconnu dans cette partie.' });
   }
   const question = await currentQuestion(game);
-  if (await repository.findAnswer(game.id, player.id, question.id)) {
-    return res.status(400).json({ error: 'Ce joueur a déjà répondu.' });
-  }
   if (!question.choices.some((c) => c.id === choiceId)) {
     return res.status(400).json({ error: 'Choix inconnu pour cette question.' });
   }
 
+  // Pas de « a-t-il déjà répondu ? » avant d'insérer : entre la question et
+  // l'INSERT, une autre requête du même joueur peut passer. C'est la base
+  // (l'index answer_once) qui tranche.
   // Le moment de la réponse est celui du SERVEUR : le bonus de rapidité ne
-  // se négocie pas avec l'horloge du client (on y reviendra, semaine 11).
-  await repository.recordAnswer(game.id, player.id, question.id, choiceId, Date.now());
+  // se négocie pas avec l'horloge du client.
+  const answerId = await repository.recordAnswer(game.id, player.id, question.id, choiceId, Date.now());
+  if (answerId === null) {
+    return res.status(409).json({ error: 'Ce joueur a déjà répondu.' });
+  }
   await broadcastState(game.code); // tout le salon voit le compte de réponses monter
   res.status(201).json({});
 });
