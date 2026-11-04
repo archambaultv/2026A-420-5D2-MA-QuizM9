@@ -32,7 +32,7 @@ export default function Lobby() {
 
   async function start() {
     try {
-      await nextQuestion(code);
+      await nextQuestion(code, game);
     } catch (e) {
       setError(e.message);
     }

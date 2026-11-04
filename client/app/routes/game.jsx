@@ -20,6 +20,9 @@ export default function Game() {
   // L'index de la dernière question à laquelle on a répondu : le bouton se
   // désactive après un clic, puis se réactive à la question suivante.
   const [answeredIndex, setAnsweredIndex] = useState(null);
+  // Le bouton de l'animateur se désactive pendant l'envoi. C'est un confort :
+  // la vraie protection contre le double-clic est sur le serveur.
+  const [advancing, setAdvancing] = useState(false);
 
   useEffect(() => {
     setSession(getSession(code));
@@ -39,10 +42,13 @@ export default function Game() {
   const hasAnswered = answeredIndex === game.questionIndex;
 
   async function advance() {
+    setAdvancing(true);
     try {
-      await nextQuestion(code);
+      await nextQuestion(code, game);
     } catch {
-      // L'état suivant arrivera par Socket.IO.
+      // 409 : un autre clic est passé avant. L'état arrive par Socket.IO.
+    } finally {
+      setAdvancing(false);
     }
   }
 
@@ -80,7 +86,11 @@ export default function Game() {
             {game.answerCount} sur {onlineCount} ont répondu
           </p>
 
-          {isHost && <button onClick={advance}>Clore la question</button>}
+          {isHost && (
+            <button onClick={advance} disabled={advancing}>
+              Clore la question
+            </button>
+          )}
           {nickname &&
             (hasAnswered ? (
               <p>Réponse envoyée. On attend les autres…</p>
@@ -101,7 +111,7 @@ export default function Game() {
           <h2>Classement</h2>
           <Leaderboard players={game.players} currentNickname={nickname} />
           {isHost && (
-            <button onClick={advance}>
+            <button onClick={advance} disabled={advancing}>
               {game.questionIndex + 1 < game.questionCount
                 ? 'Question suivante'
                 : 'Terminer la partie'}

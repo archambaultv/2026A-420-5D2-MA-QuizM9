@@ -41,8 +41,12 @@ export function joinGame(code, nickname) {
   return request('POST', `/api/games/${code}/players`, { nickname });
 }
 
-export function nextQuestion(code) {
-  return request('POST', `/api/games/${code}/next`);
+/**
+ * L'animateur clique. On envoie l'état qu'il avait sous les yeux : si la
+ * partie a avancé entre-temps (un double-clic), le serveur répond 409.
+ */
+export function nextQuestion(code, { state, questionIndex }) {
+  return request('POST', `/api/games/${code}/next`, { state, questionIndex });
 }
 
 export function sendAnswer(code, token, choiceId) {

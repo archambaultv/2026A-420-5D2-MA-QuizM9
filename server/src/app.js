@@ -30,7 +30,8 @@
  *   POST /api/games                    201 { code }        corps : { quizId }  (connecté)
  *   POST /api/games/:code/players     201 { nickname, token }  corps : { nickname }
  *   GET  /api/games/:code              200 état public
- *   POST /api/games/:code/next        200 état public     (animateur)
+ *   POST /api/games/:code/next        200 état public     corps : { state, questionIndex }  (animateur)
+ *                                     409 la partie a déjà avancé
  *   POST /api/games/:code/answers     201 {}              corps : { choiceId }  (jeton du joueur)
  *                                     409 déjà répondu
  *   POST /api/games/:code/chat        200 { enabled }     corps : { enabled }  (animateur)
@@ -257,13 +258,26 @@ app.get('/api/games/:code', async (req, res) => {
 
 // L'animateur avance : clôt la question en cours, ou passe à la suivante.
 // Seulement l'animateur de CETTE partie : les joueurs connaissent le code.
+//
+// Le corps dit l'état que l'animateur avait SOUS LES YEUX quand il a cliqué.
+// Un double-clic envoie deux fois le même : le deuxième ne correspond plus à
+// la partie, il est refusé au lieu de clore la question qui vient de s'ouvrir.
 app.post('/api/games/:code/next', requireAccount, requireGameHost, async (req, res) => {
   const game = req.game;
+  const expected = req.body ?? {};
+  if (typeof expected.state !== 'string' || !Number.isInteger(expected.questionIndex)) {
+    return res.status(400).json({ error: 'L’état attendu est obligatoire : { state, questionIndex }.' });
+  }
+
   await closeQuestionIfExpired(game);
-  if (game.state === 'question') {
-    await closeQuestion(game);
-  } else {
-    await advance(game);
+  if (expected.state !== game.state || expected.questionIndex !== game.question_index) {
+    return res.status(409).json({ error: 'La partie a déjà avancé.' });
+  }
+  // Deux clics simultanés passent tous deux le test ci-dessus : c'est
+  // l'UPDATE conditionnel (closeQuestion, advance) qui n'en laisse passer qu'un.
+  const moved = game.state === 'question' ? await closeQuestion(game) : await advance(game);
+  if (!moved) {
+    return res.status(409).json({ error: 'La partie a déjà avancé.' });
   }
   const state = await publicState(game.code);
   if (state.state === 'question') {

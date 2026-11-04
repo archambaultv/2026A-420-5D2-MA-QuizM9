@@ -107,15 +107,21 @@ export async function closeQuestionIfExpired(game) {
   }
 }
 
-/** Passe à la question suivante, ou termine la partie s'il n'y en a plus. */
+/**
+ * Passe à la question suivante, ou termine la partie s'il n'y en a plus.
+ * Comme closeQuestion : seulement si la partie est encore dans l'état lu.
+ *
+ * @returns {Promise<boolean>} true si c'est cet appel qui a fait avancer la partie
+ */
 export async function advance(game) {
-  if (game.state === 'finished') return;
+  if (game.state === 'finished') return false;
   const quiz = await repository.getQuizWithQuestions(game.quiz_id);
-  if (game.question_index + 1 >= quiz.questions.length) {
-    await repository.updateGameState(game.id, 'finished', game.question_index, null);
-    return;
-  }
-  await repository.updateGameState(game.id, 'question', game.question_index + 1, Date.now());
+  const from = { state: game.state, questionIndex: game.question_index };
+  const to =
+    game.question_index + 1 >= quiz.questions.length
+      ? { state: 'finished', questionIndex: game.question_index, questionStartedAt: null }
+      : { state: 'question', questionIndex: game.question_index + 1, questionStartedAt: Date.now() };
+  return repository.transitionGame(game.id, from, to);
 }
 
 /**
