@@ -14,6 +14,13 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 const COOKIE_NAME = 'quizm9_session';
+// En production (NODE_ENV=production, voir deploy/compose.yml), le serveur
+// refuse de démarrer sans vrai secret : la valeur par défaut est publique,
+// elle est dans ce fichier.
+const PRODUCTION = process.env.NODE_ENV === 'production';
+if (PRODUCTION && !process.env.SESSION_SECRET) {
+  throw new Error('SESSION_SECRET est obligatoire en production.');
+}
 const SECRET = process.env.SESSION_SECRET ?? 'developpement-seulement';
 // Durée de vie d'une session. Un jeton signé ne se révoque pas : c'est cette
 // date d'expiration qui limite les dégâts d'un cookie volé.
@@ -66,6 +73,7 @@ export function writeSession(res, session) {
   res.cookie(COOKIE_NAME, signSession(session), {
     httpOnly: true, // invisible au JavaScript de la page : un XSS ne la vole pas
     sameSite: 'lax', // pas envoyé par un formulaire posté depuis un autre site
+    secure: PRODUCTION, // en production, envoyé seulement par HTTPS
     maxAge: DUREE_MS, // le navigateur l'oublie au bout d'une semaine, lui aussi
     path: '/',
   });

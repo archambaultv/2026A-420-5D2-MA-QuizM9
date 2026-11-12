@@ -23,10 +23,12 @@ services:
     ports:
       - "3000:3000"
     environment:
+      NODE_ENV: production
       DATABASE_URL: postgres://quizm9:${POSTGRES_PASSWORD}@postgres:5432/quizm9
       SESSION_SECRET: ${SESSION_SECRET}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      GITHUB_CALLBACK_URL: https://${DOMAIN}/api/auth/callback
     depends_on:
       postgres:
         condition: service_healthy

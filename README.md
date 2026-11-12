@@ -9,9 +9,10 @@ Le dépôt grandit d'une semaine à l'autre. **L'énoncé du travail de la semai
 est sur le site du cours**, sous
 [Exercices](https://archambaultv.github.io/2026A-420-5D2-MA/g2/notes_de_cours/exercices).
 
-> **Semaine 11.** Le point de départ est la solution de la semaine 10. Les
-> tests de l'exercice 17 sont fournis et échouent au départ :
-> `npm run test:concurrence -w server`.
+> **Semaine 12.** Le point de départ est la solution de la semaine 11.
+> L'exercice 18 met Caddy devant l'application (`deploy/`). L'exercice 19
+> ajoute un animal à chaque joueur à l'aide de migrations
+> (`server/src/repository/migrate.js` est fourni).
 
 ## Prérequis
 
